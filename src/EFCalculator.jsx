@@ -27,6 +27,16 @@ function classifyEF(ef) {
   return { label: 'Extremely severe', color: '#b71c1c' };
 }
 
+function explainEF(ef) {
+  if (ef <= 1) return 'at or below the crustal baseline — consistent with a purely natural (geogenic) source';
+  if (ef < 3) return 'only minor enrichment, still broadly within natural geochemical variability';
+  if (ef < 5) return 'moderate enrichment; a natural explanation is possible, but some non-crustal input cannot be ruled out';
+  if (ef < 10) return 'moderate-to-severe enrichment, suggesting a meaningful non-crustal (likely anthropogenic) contribution';
+  if (ef < 25) return 'severe enrichment, generally interpreted as anthropogenic contamination rather than natural background';
+  if (ef < 50) return 'very severe enrichment, indicating substantial anthropogenic input';
+  return 'extremely severe enrichment, pointing to a dominant, likely point-source contamination';
+}
+
 const emptyCrust = () => ELEMENT_LIST.reduce((acc, el) => ({ ...acc, [el]: '' }), {});
 
 function EFCalculator() {
@@ -347,6 +357,17 @@ function EFCalculator() {
                   })}
                 </div>
               </div>
+
+              {sampleResult?.elementResults.some(r => r.ef !== null) && (
+                <div style={{ marginTop: 14, padding: '12px 14px', background: '#eef4ff', border: '1px solid #cfe0fb', borderRadius: 10, fontSize: 12.5, lineHeight: 1.6 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>What this means</div>
+                  {sampleResult.elementResults.filter(r => r.ef !== null).map(r => (
+                    <div key={r.element} style={{ marginBottom: 4 }}>
+                      <strong>{r.element}</strong> (EF = {r.ef.toFixed(2)}) is {explainEF(r.ef)}.
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
