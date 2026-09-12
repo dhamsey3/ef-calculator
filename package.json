@@ -1,0 +1,21 @@
+{
+  "name": "soil-ef-calculator",
+  "version": "1.0.0",
+  "description": "Enrichment Factor calculator for source-apportionment of heavy metals in contaminated soils, using the Birch (2003) classification scheme.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "recharts": "^2.10.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "vite": "^5.0.0"
+  },
+  "license": "MIT"
+}
