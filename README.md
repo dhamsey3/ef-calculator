@@ -92,11 +92,11 @@ Netlify, Vercel, S3, etc.).
 
 ## Background
 
-This tool grew out of a Master's thesis on geochemical and mineralogical
-characterization of topsoils from abandoned Zn–Pb mining sites (La Calamine,
-Belgium and Stolberg, Germany), which used aqua regia digestion, ICP-OES,
-SEM-EDS, and XRD alongside EF-based source apportionment. It's built as a
-general-purpose tool, not tied to that dataset — bring your own numbers.
+This tool grew out of geochemical and mineralogical characterization work on
+topsoils from abandoned Zn–Pb mining sites (La Calamine, Belgium and
+Stolberg, Germany), which used aqua regia digestion, ICP-OES, SEM-EDS, and
+XRD alongside EF-based source apportionment. It's built as a general-purpose
+tool, not tied to that dataset — bring your own numbers.
 
 ## License
 
