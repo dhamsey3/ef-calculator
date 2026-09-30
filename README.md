@@ -42,6 +42,12 @@ First column is the sample name; other columns are element symbols
 (`Cu`, `Cu (µg/g)` and `Cu_ppm` all work), with concentrations in µg/g.
 Non-numeric cells such as `<LOD` are left blank.
 
+To try it, download
+[`example-soil-data.csv`](./public/example-soil-data.csv) — an illustrative
+dataset (background row plus control, tailings, floodplain, roadside and
+garden samples). The numbers are made up for demonstration; they are not
+real field data or a published baseline.
+
 ## On reference/background values — read this before using real data
 
 **This tool does not ship with built-in crustal reference values.** EF is a
