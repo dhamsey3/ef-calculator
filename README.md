@@ -19,9 +19,28 @@ and error-prone.
 - Choose a reference (normalizing) element — typically Fe or Al
 - Get EF per element per sample, automatically classified using Birch (2003)
   thresholds (no enrichment → extremely severe)
-- Compare multiple samples/sites side by side on a bar chart
+- Import samples from a CSV (comma-, semicolon- or tab-separated; a
+  `Background` row fills the reference values), or download a template
+- Compare samples/sites side by side on a bar chart, with an optional log
+  scale for the wide range EF values cover
 - Export all results to CSV
 - Click any result to see the underlying calculation
+- Try it instantly with **Load example** (illustrative placeholder numbers,
+  not real data or a published baseline)
+- Your inputs are saved in your browser, so a refresh doesn't lose them
+  (nothing is uploaded anywhere)
+
+### CSV import format
+
+```csv
+Sample,Fe,Cu,Pb,Zn
+Background,,,,
+Site A,,,,
+```
+
+First column is the sample name; other columns are element symbols
+(`Cu`, `Cu (µg/g)` and `Cu_ppm` all work), with concentrations in µg/g.
+Non-numeric cells such as `<LOD` are left blank.
 
 ## On reference/background values — read this before using real data
 
