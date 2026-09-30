@@ -284,6 +284,7 @@ function EFCalculator() {
           with all concentrations in µg/g. A row named <code>Background</code> (or Crust / Reference / Baseline) fills the
           reference values instead of becoming a sample. Comma-, semicolon- or tab-separated files all work; semicolon files may
           use decimal commas. Non-numeric cells such as <code>&lt;LOD</code> are left blank.
+          {' '}Try it with the <a href={`${import.meta.env.BASE_URL}example-soil-data.csv`} download>example dataset</a> (illustrative numbers, not real data).
         </div>
       </details>
 
