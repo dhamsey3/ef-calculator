@@ -2,6 +2,8 @@
 
 **[Live demo →](https://dhamsey3.github.io/ef-calculator/)**
 
+![EF comparison chart for the example dataset (log scale)](docs/images/ef-chart.png)
+
 An interactive tool for source-apportionment of trace/heavy metals in soils —
 distinguishing **geogenic** (natural/crustal) from **anthropogenic**
 (human-caused) contamination — using the Enrichment Factor method and the
