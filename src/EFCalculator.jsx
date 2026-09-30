@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { ELEMENT_LIST, classifyEF, explainEF, parseSamplesCSV, templateCSV, downloadText, EXAMPLE } from './ef.js';
 
 // NOTE ON REFERENCE VALUES:
 // This tool intentionally ships with NO built-in "crustal background" values.
@@ -12,48 +13,114 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 // Look up the specific element values from one of these (or your own regional/local
 // background dataset) and enter them below. Do not assume any tool's built-in numbers
 // are correct for your study without checking the primary source yourself.
-
-const ELEMENT_LIST = ['Cu', 'Pb', 'Zn', 'Mn', 'Ni', 'Cr', 'Fe', 'Ca', 'Mg', 'Al', 'Cd', 'Tl', 'Rb'];
+// (The "Load example" button uses clearly labelled illustrative numbers only.)
 
 const SAMPLE_COLORS = ['#2563eb', '#e5533d', '#16a085', '#8e44ad', '#d68910', '#2c3e50', '#c0392b', '#27ae60'];
 
-function classifyEF(ef) {
-  if (ef <= 1) return { label: 'No enrichment', color: '#2e7d32' };
-  if (ef < 3) return { label: 'Minor enrichment', color: '#66bb6a' };
-  if (ef < 5) return { label: 'Moderate enrichment', color: '#ffca28' };
-  if (ef < 10) return { label: 'Moderate–severe', color: '#ffa726' };
-  if (ef < 25) return { label: 'Severe enrichment', color: '#fb8c00' };
-  if (ef < 50) return { label: 'Very severe', color: '#e53935' };
-  return { label: 'Extremely severe', color: '#b71c1c' };
-}
-
-function explainEF(ef) {
-  if (ef <= 1) return 'at or below the crustal baseline — consistent with a purely natural (geogenic) source';
-  if (ef < 3) return 'only minor enrichment, still broadly within natural geochemical variability';
-  if (ef < 5) return 'moderate enrichment; a natural explanation is possible, but some non-crustal input cannot be ruled out';
-  if (ef < 10) return 'moderate-to-severe enrichment, suggesting a meaningful non-crustal (likely anthropogenic) contribution';
-  if (ef < 25) return 'severe enrichment, generally interpreted as anthropogenic contamination rather than natural background';
-  if (ef < 50) return 'very severe enrichment, indicating substantial anthropogenic input';
-  return 'extremely severe enrichment, pointing to a dominant, likely point-source contamination';
-}
+const STORAGE_KEY = 'ef-calculator-state-v1';
 
 const emptyCrust = () => ELEMENT_LIST.reduce((acc, el) => ({ ...acc, [el]: '' }), {});
 
+const DEFAULT_ACTIVE = ['Cu', 'Pb', 'Zn', 'Mn', 'Ni', 'Cr', 'Ca', 'Mg'];
+
+const blankState = () => ({
+  refElement: 'Fe',
+  crustValues: emptyCrust(),
+  samples: [{ id: 1, name: 'Sample 1', values: {} }],
+  activeElements: DEFAULT_ACTIVE,
+  logScale: false,
+});
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (saved && Array.isArray(saved.samples) && saved.samples.length > 0) {
+      return { ...blankState(), ...saved, crustValues: { ...emptyCrust(), ...saved.crustValues } };
+    }
+  } catch { /* storage unavailable or corrupt — start fresh */ }
+  return blankState();
+}
+
+const hasAnyInput = (samples, crustValues) =>
+  samples.some(s => Object.values(s.values).some(v => v !== '')) ||
+  Object.values(crustValues).some(v => v !== '');
+
+const smallButton = {
+  padding: '6px 12px', borderRadius: 8, border: '1px solid #d0d0d5', background: 'white',
+  color: '#333', fontWeight: 600, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap'
+};
+
 function EFCalculator() {
-  const [refElement, setRefElement] = useState('Fe');
-  const [crustValues, setCrustValues] = useState(emptyCrust());
-  const [samples, setSamples] = useState([
-    { id: 1, name: 'Sample 1', values: { Cu: '', Pb: '', Zn: '', Mn: '', Ni: '', Cr: '', Fe: '', Ca: '', Mg: '' } }
-  ]);
-  const [activeElements, setActiveElements] = useState(['Cu', 'Pb', 'Zn', 'Mn', 'Ni', 'Cr', 'Ca', 'Mg']);
+  const [initial] = useState(loadState);
+  const [refElement, setRefElement] = useState(initial.refElement);
+  const [crustValues, setCrustValues] = useState(initial.crustValues);
+  const [samples, setSamples] = useState(initial.samples);
+  const [activeElements, setActiveElements] = useState(initial.activeElements);
+  const [logScale, setLogScale] = useState(initial.logScale);
   const [expandedCalc, setExpandedCalc] = useState(null);
+  const [importMessage, setImportMessage] = useState(null);
+  const fileInput = useRef(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ refElement, crustValues, samples, activeElements, logScale }));
+    } catch { /* storage unavailable — nothing to do */ }
+  }, [refElement, crustValues, samples, activeElements, logScale]);
+
+  const nextId = (list) => list.reduce((max, s) => Math.max(max, s.id), 0) + 1;
 
   const addSample = () => {
-    const newId = Math.max(...samples.map(s => s.id)) + 1;
-    const emptyValues = {};
-    activeElements.forEach(el => { emptyValues[el] = ''; });
-    emptyValues[refElement] = '';
-    setSamples([...samples, { id: newId, name: `Sample ${newId}`, values: emptyValues }]);
+    const newId = nextId(samples);
+    setSamples([...samples, { id: newId, name: `Sample ${newId}`, values: {} }]);
+  };
+
+  const confirmReplace = (what) =>
+    !hasAnyInput(samples, crustValues) || window.confirm(`${what} will replace the data you have entered. Continue?`);
+
+  const loadExample = () => {
+    if (!confirmReplace('Loading the example')) return;
+    setRefElement(EXAMPLE.refElement);
+    setActiveElements(EXAMPLE.activeElements);
+    setCrustValues({ ...emptyCrust(), ...EXAMPLE.crustValues });
+    setSamples(EXAMPLE.samples.map((s, i) => ({ id: i + 1, ...s })));
+    setExpandedCalc(null);
+    setImportMessage({ type: 'info', text: 'Loaded an illustrative example. The reference values are round placeholder numbers, not from a published compilation — replace them before using real data.' });
+  };
+
+  const resetAll = () => {
+    if (!confirmReplace('Clearing everything')) return;
+    const fresh = blankState();
+    setRefElement(fresh.refElement);
+    setActiveElements(fresh.activeElements);
+    setCrustValues(fresh.crustValues);
+    setSamples(fresh.samples);
+    setLogScale(fresh.logScale);
+    setExpandedCalc(null);
+    setImportMessage(null);
+  };
+
+  const importCSV = async (file) => {
+    if (!file) return;
+    try {
+      const parsed = parseSamplesCSV(await file.text());
+      if (parsed.samples.length === 0 && !parsed.background) throw new Error('No data rows found.');
+
+      // Keep existing samples unless they are all still blank.
+      const keep = samples.filter(s => Object.values(s.values).some(v => v !== ''));
+      let id = nextId(keep);
+      const imported = parsed.samples.map(s => ({ id: id++, ...s }));
+      if (keep.length + imported.length > 0) setSamples([...keep, ...imported]);
+      if (parsed.background) setCrustValues({ ...crustValues, ...parsed.background });
+      setActiveElements([...new Set([...activeElements, ...parsed.elements.filter(el => el !== refElement)])]);
+
+      const notes = [`Imported ${imported.length} sample${imported.length === 1 ? '' : 's'} (${parsed.elements.join(', ')}).`];
+      if (parsed.background) notes.push('Reference values were filled from the background row.');
+      if (parsed.ignoredColumns.length) notes.push(`Ignored columns: ${parsed.ignoredColumns.join(', ')}.`);
+      if (parsed.skippedCells) notes.push(`${parsed.skippedCells} non-numeric cell(s) (e.g. "<LOD") were left blank.`);
+      setImportMessage({ type: 'info', text: notes.join(' ') });
+    } catch (err) {
+      setImportMessage({ type: 'error', text: `Could not import ${file.name}: ${err.message}` });
+    }
   };
 
   const removeSample = (id) => {
@@ -125,11 +192,14 @@ function EFCalculator() {
       const row = { element: el };
       results.forEach(sample => {
         const r = sample.elementResults.find(er => er.element === el);
-        row[sample.name] = r && r.ef !== null ? Number(r.ef.toFixed(2)) : 0;
+        // Missing EF -> null (no bar), never 0, which would read as "no enrichment".
+        // Log scale can't show EF = 0 either.
+        const ok = r && r.ef !== null && (!logScale || r.ef > 0);
+        row[`s${sample.id}`] = ok ? Number(r.ef.toFixed(2)) : null;
       });
       return row;
     });
-  }, [results, activeElements, refElement]);
+  }, [results, activeElements, refElement, logScale]);
 
   const hasAnyResult = results.some(s => s.elementResults.some(r => r.ef !== null));
 
@@ -144,14 +214,8 @@ function EFCalculator() {
       });
       return row;
     });
-    const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'enrichment_factors.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    downloadText('enrichment_factors.csv', csv);
   };
 
   return (
@@ -182,6 +246,46 @@ function EFCalculator() {
           ⬇ Export CSV
         </button>
       </div>
+
+      {/* Data toolbar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: importMessage ? 10 : 20 }}>
+        <button style={smallButton} onClick={() => fileInput.current?.click()}>⬆ Import CSV</button>
+        <button style={smallButton} onClick={() => downloadText('ef_template.csv', templateCSV([refElement, ...activeElements.filter(el => el !== refElement)]))}>
+          Download template
+        </button>
+        <button style={smallButton} onClick={loadExample}>Load example</button>
+        <button style={{ ...smallButton, color: '#c0392b' }} onClick={resetAll}>Clear all</button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".csv,.tsv,.txt,text/csv"
+          style={{ display: 'none' }}
+          onChange={(e) => { importCSV(e.target.files[0]); e.target.value = ''; }}
+        />
+        <span style={{ fontSize: 12, color: '#888', alignSelf: 'center' }}>
+          Your data is saved in this browser only.
+        </span>
+      </div>
+      {importMessage && (
+        <div style={{
+          marginBottom: 20, padding: '10px 14px', borderRadius: 10, fontSize: 13, lineHeight: 1.5,
+          display: 'flex', justifyContent: 'space-between', gap: 12,
+          background: importMessage.type === 'error' ? '#fdecea' : '#eef4ff',
+          border: `1px solid ${importMessage.type === 'error' ? '#f5c2bd' : '#cfe0fb'}`
+        }}>
+          <span>{importMessage.text}</span>
+          <button onClick={() => setImportMessage(null)} aria-label="Dismiss" style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 14, color: '#666' }}>✕</button>
+        </div>
+      )}
+      <details style={{ fontSize: 12.5, color: '#555', marginBottom: 20, marginTop: -8 }}>
+        <summary style={{ cursor: 'pointer' }}>CSV format</summary>
+        <div style={{ marginTop: 6, lineHeight: 1.6 }}>
+          First column: sample name. Other columns: element symbols (e.g. <code>Cu</code>, <code>Pb (µg/g)</code>, <code>Zn_ppm</code>),
+          with all concentrations in µg/g. A row named <code>Background</code> (or Crust / Reference / Baseline) fills the
+          reference values instead of becoming a sample. Comma-, semicolon- or tab-separated files all work; semicolon files may
+          use decimal commas. Non-numeric cells such as <code>&lt;LOD</code> are left blank.
+        </div>
+      </details>
 
       {/* Reference element */}
       <div style={{ background: '#f7f7f8', borderRadius: 12, padding: 16, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -251,21 +355,37 @@ function EFCalculator() {
       </div>
 
       {/* Comparison chart */}
-      {samples.length > 1 && hasAnyResult && (
+      {hasAnyResult && (
         <div style={{ border: '1px solid #e5e5e8', borderRadius: 12, padding: 16, marginBottom: 24 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Enrichment factor comparison</div>
-          <div style={{ fontSize: 12.5, color: '#666', marginBottom: 12 }}>
-            One bar group per element, one bar per sample.
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Enrichment factor comparison</div>
+              <div style={{ fontSize: 12.5, color: '#666', marginBottom: 12 }}>
+                One bar group per element, one bar per sample. Dashed lines mark EF = 1 and EF = 10. Missing values show no bar.
+              </div>
+            </div>
+            <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
+              Log scale
+            </label>
           </div>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
               <XAxis dataKey="element" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} label={{ value: 'EF', angle: -90, position: 'insideLeft', fontSize: 12 }} />
-              <Tooltip />
+              <YAxis
+                tick={{ fontSize: 12 }}
+                scale={logScale ? 'log' : 'auto'}
+                domain={logScale ? [(min) => Math.pow(10, Math.floor(Math.log10(min))), 'auto'] : [0, 'auto']}
+                allowDataOverflow={logScale}
+                label={{ value: 'EF', angle: -90, position: 'insideLeft', fontSize: 12 }}
+              />
+              <Tooltip formatter={(v) => (v === null ? 'n/a' : v)} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
+              <ReferenceLine y={1} stroke="#2e7d32" strokeDasharray="4 4" />
+              <ReferenceLine y={10} stroke="#e53935" strokeDasharray="4 4" />
               {samples.map((s, i) => (
-                <Bar key={s.id} dataKey={s.name} fill={SAMPLE_COLORS[i % SAMPLE_COLORS.length]} radius={[4, 4, 0, 0]} />
+                <Bar key={s.id} dataKey={`s${s.id}`} name={s.name || `Sample ${s.id}`} fill={SAMPLE_COLORS[i % SAMPLE_COLORS.length]} radius={[4, 4, 0, 0]} />
               ))}
             </BarChart>
           </ResponsiveContainer>
